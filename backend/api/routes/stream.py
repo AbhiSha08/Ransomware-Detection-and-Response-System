@@ -29,7 +29,7 @@ SSE Protocol:
     └──────────────────────────────────────────────────────────────────┘
 
 Architecture:
-    - A module-level asyncio.Queue is the fan-out bus. The ResponseHandler
+    - A module-level asyncio.Queue is the fan-out bus. The IncidentResponder
       and ScoringEngine push events here.
     - Each connected SSE client gets its own iterator that reads from a
       per-client asyncio.Queue (broadcast pattern).
@@ -90,7 +90,7 @@ async def publish_alert(alert_data: dict) -> None:
     """
     Publish a new Alert event to all connected SSE clients.
 
-    Called by ResponseHandler immediately after persisting an Alert record.
+    Called by IncidentResponder immediately after persisting an Alert record.
 
     Args:
         alert_data: Dict representation of the alert (use AlertOut.model_dump()).
@@ -102,7 +102,7 @@ async def publish_incident(incident_data: dict) -> None:
     """
     Publish a new Incident event to all connected SSE clients.
 
-    Called by ResponseHandler after persisting an Incident record.
+    Called by IncidentResponder after persisting an Incident record.
 
     Args:
         incident_data: Dict representation of the incident.

@@ -492,10 +492,10 @@ class Alert(Base):
         index=True,
         comment="Alert category (e.g., FILE_RENAME_SPIKE, HIGH_ENTROPY_DETECTED)",
     )
-    threat_score_id: Mapped[uuid.UUID] = mapped_column(
+    threat_score_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("threat_scores.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
         comment="FK: ThreatScore record that triggered this alert",
     )
@@ -528,7 +528,7 @@ class Alert(Base):
     )
 
     # --- Relationships ---
-    threat_score: Mapped["ThreatScore"] = relationship(
+    threat_score: Mapped["ThreatScore | None"] = relationship(
         "ThreatScore",
         back_populates="alerts",
         lazy="select",

@@ -87,7 +87,7 @@ def test_mass_rename_rule_evaluation() -> None:
 
     signal = rule.evaluate(file_window, process_window)
     assert signal is not None
-    assert signal.rule_name == "file_rename"
+    assert signal.rule_name == "mass_rename"
     assert signal.value > 0.5
     assert "suspicious extension renames" in signal.evidence
 

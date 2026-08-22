@@ -9,10 +9,10 @@ This module:
   3. Attaches slowapi rate limiting middleware.
   4. Registers all route modules under /api/v1/.
   5. Manages the startup/shutdown lifecycle of all RDRS background services
-     (database init, engine, monitor, poller, response handler, SSE broadcaster).
+     (database init, engine, monitor, poller, SSE broadcaster).
 
 Startup order:
-    Database init → Logging setup → ResponseHandler → ThreatScoringEngine →
+    Database init → Logging setup → ThreatScoringEngine →
     FileSystemMonitor → ProcessPoller → SSE Broadcaster
 
 Shutdown order (reverse):
@@ -77,12 +77,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
       1. Initialize logging subsystem.
       2. Intercept stdlib logging from third-party libraries.
       3. Initialize database schema (idempotent).
-      4. Instantiate ResponseHandler.
-      5. Instantiate and start ThreatScoringEngine.
-      6. Instantiate and start FileSystemMonitor.
-      7. Instantiate and start ProcessPoller.
-      8. Start SSE broadcaster background task.
-      9. Register all singleton dependencies.
+      4. Instantiate and start ThreatScoringEngine.
+      5. Instantiate and start FileSystemMonitor.
+      6. Instantiate and start ProcessPoller.
+      7. Start SSE broadcaster background task.
+      8. Register all singleton dependencies.
 
     Shutdown sequence (reverse order):
       - Stop SSE broadcaster.

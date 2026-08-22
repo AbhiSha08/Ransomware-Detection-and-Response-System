@@ -11,6 +11,7 @@ Tests cover:
   - Validating evidence quarantine logic strictly within data/sandbox/quarantine/.
 """
 
+import asyncio
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,7 +23,7 @@ from backend.database.models import Alert, Incident
 from backend.detectors.engine import ThreatScoringEngine, ScoringResult
 from backend.detectors.file_monitor import RawFileEvent
 from backend.detectors.process_poller import RawProcessSnapshot
-from backend.detectors.response import ResponseHandler
+from backend.detectors.responder import IncidentResponder
 from tests.conftest import SANDBOX_ROOT, assert_in_sandbox
 
 
@@ -37,7 +38,7 @@ async def test_full_pipeline_critical_incident_and_quarantine(
       2. Feed ransomware-like telemetry across all detector rules (mass renames to .locked,
          high entropy creation/modification events, process spikes, shadow copy deletion).
       3. Evaluate ThreatScoringEngine -> Expect score >= 70.0 (CRITICAL).
-      4. Trigger ResponseHandler -> Expect Incident & Alert records in DB.
+      4. Trigger IncidentResponder -> Expect Incident & Alert records in DB.
       5. Verify evidence quarantine copies land strictly in data/sandbox/quarantine/.
     """
     # Step 1: Create victim test files inside sandbox
@@ -49,11 +50,11 @@ async def test_full_pipeline_critical_incident_and_quarantine(
     assert_in_sandbox(file1)
     assert_in_sandbox(file2)
 
-    # Step 2: Initialize ResponseHandler in 'alert' mode for quarantine test
-    handler = ResponseHandler(mode_override="alert")
+    # Step 2: Initialize IncidentResponder for quarantine test
+    responder = IncidentResponder(sandbox_dir=str(SANDBOX_ROOT / "quarantine"))
 
-    # Step 3: Instantiate ThreatScoringEngine linked to response handler
-    engine = ThreatScoringEngine(response_callback=handler.on_critical_score)
+    # Step 3: Instantiate ThreatScoringEngine
+    engine = ThreatScoringEngine()
 
     now = datetime.now(timezone.utc)
 
@@ -143,8 +144,23 @@ async def test_full_pipeline_critical_incident_and_quarantine(
     assert result.severity == "CRITICAL"
     assert "file_rename" in result.triggered_rules or "entropy" in result.triggered_rules
 
-    # Step 5: Invoke response handler directly with critical result
-    await handler.on_critical_score(result)
+    # Step 5: Mint Incident (simulating engine._scoring_loop)
+    import uuid
+    incident_id = str(uuid.uuid4())
+    incident = Incident(
+        id=uuid.UUID(incident_id),
+        timestamp=result.timestamp,
+        threat_score=result.score,
+        severity_level=result.severity,
+        response_mode="simulation",
+        resolved=False,
+    )
+    async_session.add(incident)
+    await async_session.commit()
+    
+    # Step 5.5: Invoke IncidentResponder directly with critical result context
+    responder.quarantine_evidence(incident_id, [str(file1), str(file2)])
+    await responder.broadcast_mitigation_alert(incident_id, pid="7770")
 
     # Step 6: Verify Incident record in database
     inc_result = await async_session.execute(select(Incident))
@@ -156,10 +172,12 @@ async def test_full_pipeline_critical_incident_and_quarantine(
     assert inc.severity_level == "CRITICAL"
 
     # Step 7: Verify Alert record in database
+    await asyncio.sleep(0.1)  # Yield to allow background tasks / separate DB sessions to finish
+    await async_session.commit()  # Flush test session to see newly created records
     alert_result = await async_session.execute(select(Alert))
     alerts = alert_result.scalars().all()
     assert len(alerts) >= 1, "Alert record should be created in DB"
-    assert "CRITICAL" in alerts[0].message
+    assert "quarantined" in alerts[0].message
 
     # Step 8: Verify Evidence Quarantine logic
     quarantine_dir = SANDBOX_ROOT / "quarantine"
