@@ -1,0 +1,361 @@
+# =============================================================================
+# RDRS — Application Configuration
+# =============================================================================
+# File    : config.yaml
+# Version : 1.0.0
+# Author  : RDRS Core Team
+# Updated : 2026-08-13
+#
+# SECURITY NOTICE:
+#   This file MUST NOT contain real credentials, passwords, or API keys.
+#   All sensitive values use ${ENV_VAR_NAME} substitution syntax.
+#   The application will raise a ConfigurationError at startup if any
+#   required environment variable is missing.
+#
+# Usage:
+#   The application loads this file at startup via PyYAML.
+#   Environment variable substitution is performed by the config loader
+#   in backend/core/config.py using python-dotenv.
+#
+# Editing:
+#   After modifying this file, restart the backend service.
+#   No hot-reload for config changes in production.
+# =============================================================================
+
+
+# =============================================================================
+# Application Metadata
+# =============================================================================
+app:
+  name: "Ransomware Detection and Response System"
+  short_name: "RDRS"
+  version: "1.0.0"
+  environment: "development"           # Options: development | staging | production
+  debug: true                          # Set to false in production
+  timezone: "UTC"
+
+
+# =============================================================================
+# Database Configuration
+# =============================================================================
+database:
+  # PostgreSQL connection string. Assembled from environment variables.
+  # Format: postgresql+psycopg2://user:password@host:port/dbname
+  #
+  # Set these environment variables in your .env file:
+  #   RDRS_DB_USER     - Database username         (default: rdrs_user)
+  #   RDRS_DB_PASSWORD - Database password         (REQUIRED, no default)
+  #   RDRS_DB_HOST     - Database hostname         (default: localhost)
+  #   RDRS_DB_PORT     - Database port             (default: 5432)
+  #   RDRS_DB_NAME     - Database name             (default: rdrs)
+  url: "postgresql+psycopg2://${RDRS_DB_USER}:${RDRS_DB_PASSWORD}@${RDRS_DB_HOST:-localhost}:${RDRS_DB_PORT:-5432}/${RDRS_DB_NAME:-rdrs}"
+
+  # Async URL for SQLAlchemy 2.0 async sessions (used by FastAPI endpoints)
+  async_url: "postgresql+asyncpg://${RDRS_DB_USER}:${RDRS_DB_PASSWORD}@${RDRS_DB_HOST:-localhost}:${RDRS_DB_PORT:-5432}/${RDRS_DB_NAME:-rdrs}"
+
+  # Connection pool configuration
+  pool:
+    pool_size: 10              # Number of persistent connections in the pool
+    max_overflow: 20           # Connections allowed beyond pool_size
+    pool_timeout: 30           # Seconds to wait for a connection from pool
+    pool_recycle: 1800         # Recycle connections after N seconds (prevents stale)
+    echo: false                # Set to true to log all SQL statements (dev only)
+
+
+# =============================================================================
+# Monitoring Configuration
+# =============================================================================
+monitoring:
+
+  # ----- Filesystem Monitor -----
+  filesystem:
+    # Directories to watch for suspicious file activity.
+    # Paths are OS-normalized at runtime.
+    watch_paths:
+      - "data/sandbox"                 # Default: sandbox only (safe for dev)
+      # Uncomment below to monitor real directories (requires elevated permissions):
+      # - "C:/Users"
+      # - "C:/Documents"
+      # - "/home"
+      # - "/var/www"
+
+    # File extensions that should be flagged if a file is renamed TO them.
+    # These are common ransomware payload extensions.
+    suspicious_extensions:
+      - ".locked"
+      - ".encrypted"
+      - ".enc"
+      - ".rdm"
+      - ".crypt"
+      - ".crypto"
+      - ".crypted"
+      - ".ezz"
+      - ".exx"
+      - ".zzz"
+      - ".xyz"
+      - ".aaa"
+      - ".abc"
+      - ".micro"
+      - ".vvv"
+      - ".wncry"                       # WannaCry
+      - ".wnry"                        # WannaCry variant
+      - ".locky"                       # Locky
+      - ".zepto"                       # Zepto/Locky variant
+
+    # Ransom note filenames to detect on creation
+    ransom_note_patterns:
+      - "README*.txt"
+      - "DECRYPT*.txt"
+      - "HOW_TO_RESTORE*"
+      - "RECOVER*.html"
+      - "YOUR_FILES*.txt"
+      - "_HELP_RECOVER*.html"
+      - "ATTENTION*.txt"
+
+    # Recursive directory watching
+    recursive: true
+
+  # ----- Process Monitor -----
+  process:
+    # Polling interval in seconds for process enumeration
+    poll_interval_seconds: 2
+
+    # Processes that are always considered safe (whitelist)
+    # Use process name without extension; case-insensitive matching
+    process_whitelist:
+      - "System"
+      - "smss"
+      - "csrss"
+      - "wininit"
+      - "services"
+      - "lsass"
+      - "svchost"
+      - "explorer"
+      - "python"                       # For RDRS backend itself
+      - "node"                         # For React dev server
+      - "postgres"                     # For database
+
+    # Processes that immediately elevate the threat score when observed
+    high_risk_processes:
+      - "vssadmin"                     # Shadow copy management
+      - "wbadmin"                      # Windows backup admin
+      - "bcdedit"                      # Boot config editor
+      - "cipher"                       # Windows EFS cipher
+      - "wmic"                         # WMI command-line interface
+      - "powershell"                   # PowerShell (flagged when parent is suspicious)
+      - "mshta"                        # HTML application host
+      - "wscript"                      # Windows Script Host
+      - "cscript"                      # Command Script Host
+
+
+# =============================================================================
+# Threat Scoring Engine
+# =============================================================================
+threat_scoring:
+
+  # Sliding window duration in seconds.
+  # Only events within this window contribute to the current threat score.
+  window_seconds: 60
+
+  # Exponential decay lambda coefficient.
+  # Higher λ = faster decay (older events lose weight more quickly).
+  # Formula: decay = e^(-lambda * delta_t)
+  decay_lambda: 0.05
+
+  # Score normalization ceiling (always 100)
+  max_score: 100
+
+  # ----- Detector Weights -----
+  # Weights must sum to 1.0. The scoring engine validates this at startup.
+  # Adjust based on environmental false-positive rates.
+  detector_weights:
+    file_rename:     0.30    # High-frequency file rename/extension change
+    entropy:         0.25    # Shannon entropy increase on modified files
+    process_chain:   0.20    # Suspicious parent→child process spawning
+    shadow_copy:     0.15    # Shadow volume deletion / backup disruption
+    network_beacon:  0.10    # Outbound connections to flagged IP ranges
+
+  # ----- Score Thresholds -----
+  # These map score ranges to severity levels and response actions.
+  thresholds:
+    nominal:
+      min: 0
+      max: 20
+      label: "NOMINAL"
+      action: "none"
+    low:
+      min: 21
+      max: 40
+      label: "LOW"
+      action: "log"
+    medium:
+      min: 41
+      max: 60
+      label: "MEDIUM"
+      action: "log_and_warn"
+    high:
+      min: 61
+      max: 80
+      label: "HIGH"
+      action: "log_and_alert"
+    critical:
+      min: 81
+      max: 100
+      label: "CRITICAL"
+      action: "log_alert_and_respond"
+
+  # ----- Detector-Specific Thresholds -----
+  file_rename:
+    # Renames per second to trigger a signal (normalized to [0,1] above this)
+    trigger_rate_per_second: 5
+    max_rate_per_second: 50             # Rate at which signal value = 1.0
+
+  entropy:
+    # Minimum Shannon entropy delta (before vs after) to trigger signal
+    min_entropy_delta: 1.5
+    max_entropy_value: 8.0              # Theoretical max for binary files
+
+  process_chain:
+    # Maximum chain depth before flagging (1 = direct parent-child)
+    max_safe_depth: 2
+
+
+# =============================================================================
+# Response Orchestrator
+# =============================================================================
+response:
+  # Operating mode for automated responses.
+  # CHANGE WITH CAUTION — see PROJECT_RULES.md §3.2
+  #
+  # Options:
+  #   simulation  - Log everything, take no action (DEFAULT, ALWAYS START HERE)
+  #   alert       - Log + send notifications (webhook/email)
+  #   active      - Log + notify + attempt process isolation
+  #
+  # DUAL-APPROVAL REQUIRED for 'active' mode:
+  #   Both 'mode' AND 'active_mode_authorized' must be set to enable active responses.
+  mode: "simulation"
+  active_mode_authorized: false        # Second approval gate for 'active' mode
+
+  # Notifications (used in 'alert' and 'active' modes)
+  notifications:
+    webhook:
+      enabled: false
+      url: "${RDRS_WEBHOOK_URL}"       # Set in .env; e.g., Slack or PagerDuty
+      # Headers injected into webhook POST requests
+      headers:
+        Content-Type: "application/json"
+        X-RDRS-Version: "1.0.0"
+
+    email:
+      enabled: false
+      smtp_host: "${RDRS_SMTP_HOST}"
+      smtp_port: 587
+      smtp_user: "${RDRS_SMTP_USER}"
+      smtp_password: "${RDRS_SMTP_PASSWORD}"
+      tls: true
+      from_address: "rdrs-alerts@yourdomain.com"
+      to_addresses:
+        - "${RDRS_ALERT_EMAIL_1}"
+
+
+# =============================================================================
+# API Server
+# =============================================================================
+api:
+  host: "0.0.0.0"                    # Bind to localhost only in development
+  port: 8000
+  workers: 1                           # Increase in production (match CPU cores)
+  reload: true                         # Hot-reload on code changes (dev only)
+
+  # CORS origins allowed to make cross-origin requests to the API.
+  # SECURITY: Never use "*" in production. List explicit origins only.
+  cors_origins:
+    - "http://localhost:5173"          # Vite dev server
+    - "http://localhost:3000"          # Alternative React dev port
+
+  # JWT Configuration
+  jwt:
+    secret_key: "${RDRS_JWT_SECRET}"   # Min 32 bytes; generate with: openssl rand -hex 32
+    algorithm: "HS256"
+    access_token_expire_minutes: 15
+    refresh_token_expire_days: 7
+
+  # Rate Limiting
+  rate_limit:
+    enabled: true
+    default_limit: "60/minute"         # Default for all endpoints
+    auth_limit: "10/minute"            # Stricter limit for auth endpoints
+
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  # Log level for the application logger.
+  # Options: TRACE | DEBUG | INFO | SUCCESS | WARNING | ERROR | CRITICAL
+  level: "DEBUG"                       # Use INFO or WARNING in production
+
+  # Log file paths (relative to project root)
+  files:
+    application: "logs/rdrs.log"
+    audit: "logs/audit.log"            # Append-only audit trail
+    errors: "logs/errors.log"          # ERROR and CRITICAL only
+
+  # Loguru rotation settings
+  rotation:
+    size: "50 MB"                      # Rotate when file reaches this size
+    retention: "30 days"               # Keep rotated logs for this duration
+    compression: "gz"                  # Compress rotated log files
+
+  # Structured JSON logging (recommended for SIEM ingestion)
+  format: "json"                       # Options: "text" | "json"
+
+  # Include diagnostic context in log records
+  diagnose: true                       # Set to false in production (security)
+  backtrace: true                      # Full traceback on exceptions
+
+
+# =============================================================================
+# Report Generation
+# =============================================================================
+reports:
+  output_directory: "data/reports"
+  auto_generate_on_critical: true      # Auto-generate PDF when score hits CRITICAL
+
+  pdf:
+    page_size: "A4"
+    include_process_tree: true
+    include_event_timeline: true
+    include_remediation_guide: true
+
+  # Report integrity: SHA-256 hash of each report is stored in the DB
+  verify_integrity: true
+
+
+# =============================================================================
+# Network Intelligence
+# =============================================================================
+network:
+  # Path to IP blocklist file (CIDR ranges or single IPs, one per line)
+  # Updated separately via a threat-intel pipeline (out of scope for v1.0)
+  blocklist_path: "data/blocklists/c2_ips.txt"
+
+  # DNS-based threat intelligence
+  dns_blocklist_enabled: false
+  dns_blocklist_url: "${RDRS_DNS_BLOCKLIST_URL}"
+
+
+# =============================================================================
+# Sandbox Configuration (Testing Only)
+# =============================================================================
+sandbox:
+  # Root directory for all test file operations.
+  # Tests MUST use this path exclusively — see PROJECT_RULES.md §3.1
+  root: "data/sandbox"
+
+  # Auto-clean sandbox between test runs
+  auto_clean: true
+
+  # Maximum file size allowed in sandbox (bytes) — prevents resource exhaustion
+  max_file_size_bytes: 10485760        # 10 MB

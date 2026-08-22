@@ -1,0 +1,71 @@
+# =============================================================================
+# RDRS — .gitignore
+# =============================================================================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ----- Virtual Environments -----
+venv/
+.venv/
+env/
+ENV/
+
+# ----- Environment & Secrets (NEVER COMMIT) -----
+.env
+.env.*
+!.env.example
+secrets/
+
+# ----- Logs -----
+logs/*.log
+logs/*.log.gz
+
+# ----- Database -----
+data/db/
+
+# ----- Sandbox (test artifacts — NEVER COMMIT) -----
+data/sandbox/
+
+# ----- Reports (generated at runtime) -----
+data/reports/
+
+# ----- Blocklists (managed separately) -----
+data/blocklists/*.txt
+
+# ----- Node / Frontend -----
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# ----- IDE -----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----- Docker -----
+.docker/
+
+# ----- Alembic -----
+# Keep alembic.ini and versions/ tracked; exclude local env
+alembic.ini.local

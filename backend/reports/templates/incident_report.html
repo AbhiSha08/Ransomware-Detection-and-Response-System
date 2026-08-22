@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RDRS Incident Report — {{ summary.incident_id[:8] }}</title>
+  <style>
+    /* ============================================================
+       RDRS Incident Report — Jinja2 HTML Template
+       Rendered to PDF via reportlab's HTML parser or wkhtmltopdf.
+       ============================================================ */
+    :root {
+      --color-primary:   #1D3557;
+      --color-accent:    #E63946;
+      --color-warn:      #FD7E14;
+      --color-safe:      #2A9D8F;
+      --color-light-bg:  #F8F9FA;
+      --color-border:    #DEE2E6;
+      --color-text:      #1A1A2E;
+      --color-muted:     #6C757D;
+      --font-mono:       'Courier New', Courier, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 10pt;
+      color: var(--color-text);
+      background: #fff;
+      padding: 0;
+    }
+
+    /* ---- Classification Banner ---- */
+    .classification-banner {
+      background: var(--color-primary);
+      color: #fff;
+      text-align: center;
+      padding: 8px 16px;
+      font-weight: bold;
+      font-size: 10pt;
+      letter-spacing: 0.05em;
+    }
+
+    /* ---- Page Header ---- */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 24px 32px 16px;
+      border-bottom: 3px solid var(--color-accent);
+    }
+    .page-header .title-block h1 {
+      font-size: 22pt;
+      color: var(--color-primary);
+      font-weight: 900;
+      line-height: 1.1;
+    }
+    .page-header .title-block .subtitle {
+      color: var(--color-accent);
+      font-size: 11pt;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .page-header .meta-block {
+      text-align: right;
+      color: var(--color-muted);
+      font-size: 9pt;
+    }
+    .page-header .meta-block .report-id {
+      font-family: var(--font-mono);
+      font-size: 8pt;
+    }
+
+    /* ---- Score Badge ---- */
+    .score-badge {
+      display: inline-block;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 28pt;
+      font-weight: 900;
+      color: #fff;
+      margin: 16px 32px;
+    }
+    .score-badge.critical { background: #DC3545; }
+    .score-badge.high     { background: #FD7E14; }
+    .score-badge.medium   { background: #FFC107; color: #000; }
+    .score-badge.low      { background: #28A745; }
+    .score-badge.nominal  { background: #17A2B8; }
+
+    .severity-label {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 4px;
+      font-size: 11pt;
+      font-weight: bold;
+      color: #fff;
+      margin-left: 12px;
+      vertical-align: middle;
+    }
+
+    /* ---- Content Area ---- */
+    .content { padding: 16px 32px 32px; }
+
+    /* ---- Section Headers ---- */
+    h2.section-title {
+      font-size: 13pt;
+      font-weight: 800;
+      color: var(--color-primary);
+      margin: 22px 0 10px;
+      padding-bottom: 4px;
+      border-bottom: 2px solid var(--color-primary);
+    }
+
+    /* ---- Summary Table ---- */
+    table.summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    table.summary-table th {
+      background: var(--color-primary);
+      color: #fff;
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 700;
+    }
+    table.summary-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    table.summary-table tr:nth-child(even) td { background: var(--color-light-bg); }
+    table.summary-table td.label { font-weight: 700; color: var(--color-primary); width: 200px; }
+
+    /* ---- Event Timeline Table ---- */
+    table.timeline-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+    table.timeline-table th {
+      background: #457B9D;
+      color: #fff;
+      padding: 5px 8px;
+      text-align: left;
+      font-weight: 700;
+    }
+    table.timeline-table td {
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+    }
+    table.timeline-table tr:nth-child(even) td { background: var(--color-light-bg); }
+    .ext-badge {
+      display: inline-block;
+      background: #DC3545;
+      color: #fff;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 7pt;
+      font-weight: bold;
+    }
+    .entropy-high { color: #DC3545; font-weight: bold; }
+    .entropy-med  { color: #FD7E14; }
+    .entropy-low  { color: var(--color-muted); }
+
+    /* ---- Process Table ---- */
+    table.process-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+    table.process-table th {
+      background: var(--color-primary);
+      color: #fff;
+      padding: 5px 8px;
+      font-weight: 700;
+    }
+    table.process-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    table.process-table tr:nth-child(even) td { background: #FFF3CD; }
+    .flagged-yes { color: #DC3545; font-weight: bold; }
+
+    /* ---- Remediation ---- */
+    .remediation-tier {
+      margin: 14px 0 6px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 10.5pt;
+    }
+    .tier-immediate { background: #FEE2E2; color: #DC3545; border-left: 4px solid #DC3545; }
+    .tier-short     { background: #FFF3E0; color: #FD7E14; border-left: 4px solid #FD7E14; }
+    .tier-long      { background: #EFF6FF; color: var(--color-primary); border-left: 4px solid var(--color-primary); }
+
+    .remediation-list {
+      list-style: none;
+      padding-left: 16px;
+    }
+    .remediation-list li {
+      padding: 4px 0;
+      font-size: 9.5pt;
+      color: var(--color-text);
+    }
+    .remediation-list li::before {
+      content: "→ ";
+      font-weight: bold;
+    }
+
+    /* ---- Footer ---- */
+    .report-footer {
+      margin-top: 32px;
+      padding-top: 10px;
+      border-top: 1px solid var(--color-border);
+      text-align: center;
+      font-size: 8pt;
+      color: var(--color-muted);
+    }
+
+    .no-print { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Classification Banner -->
+  <div class="classification-banner">
+    ⚠&nbsp; RDRS INCIDENT REPORT — CONFIDENTIAL — INTERNAL USE ONLY &nbsp;⚠
+  </div>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="title-block">
+      <h1>Post-Incident Analysis Report</h1>
+      <div class="subtitle">Ransomware Detection and Response System (RDRS) v{{ meta.rdrs_version }}</div>
+    </div>
+    <div class="meta-block">
+      <div><strong>Generated:</strong> {{ meta.generated_at[:19] | replace("T", " ") }} UTC</div>
+      <div><strong>Report Type:</strong> {{ meta.report_type }}</div>
+      <div class="report-id">Incident: {{ summary.incident_id }}</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Score Badge -->
+    {% set sev_lower = summary.severity_level | lower %}
+    <div style="margin: 12px 0;">
+      <span class="score-badge {{ sev_lower }}">
+        {{ "%.1f"|format(summary.peak_threat_score) }}
+      </span>
+      <span class="severity-label" style="background:
+        {% if sev_lower == 'critical' %}#DC3545
+        {% elif sev_lower == 'high' %}#FD7E14
+        {% elif sev_lower == 'medium' %}#FFC107; color:#000
+        {% else %}#28A745{% endif %};">
+        {{ summary.severity_level }}
+      </span>
+      <span style="margin-left: 12px; font-size: 10pt; color: var(--color-muted);">
+        / 100.0 — Threat Score at Incident Declaration
+      </span>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2 class="section-title">Executive Summary</h2>
+    <table class="summary-table">
+      <tr><td class="label">Incident ID</td><td><code>{{ summary.incident_id }}</code></td></tr>
+      <tr><td class="label">Incident Timestamp</td><td>{{ summary.incident_timestamp[:19] | replace("T", " ") }} UTC</td></tr>
+      <tr><td class="label">Peak Threat Score</td><td><strong>{{ "%.1f"|format(summary.peak_threat_score) }} / 100.0</strong></td></tr>
+      <tr><td class="label">Severity Level</td><td><strong>{{ summary.severity_level }}</strong></td></tr>
+      <tr><td class="label">Response Mode</td><td>{{ summary.response_mode | upper }}</td></tr>
+      <tr><td class="label">Affected Files</td><td>{{ summary.affected_files_count }}</td></tr>
+      <tr><td class="label">Affected Extensions</td>
+          <td>{{ summary.affected_extensions | join(", ") if summary.affected_extensions else "—" }}</td></tr>
+      <tr><td class="label">Suspect Process</td><td>{{ summary.suspect_process_name or "Unknown" }}</td></tr>
+      <tr><td class="label">Suspect PID</td><td>{{ summary.suspect_process_pid or "Unknown" }}</td></tr>
+      <tr><td class="label">Quarantine Path</td>
+          <td><code>{{ summary.quarantine_path or "N/A (simulation mode)" }}</code></td></tr>
+      <tr><td class="label">Status</td>
+          <td><strong>{{ "RESOLVED" if summary.resolved else "⚠ UNRESOLVED" }}</strong></td></tr>
+      {% if summary.operator_notes %}
+      <tr><td class="label">Operator Notes</td><td>{{ summary.operator_notes }}</td></tr>
+      {% endif %}
+    </table>
+
+    <!-- File Event Timeline -->
+    {% if event_timeline %}
+    <h2 class="section-title">
+      File Event Timeline
+      <small style="font-size: 9pt; color: var(--color-muted); font-weight: normal;">
+        (showing {{ [event_timeline|length, 50]|min }} of {{ event_timeline|length }} events)
+      </small>
+    </h2>
+    <table class="timeline-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Type</th>
+          <th>Extension</th>
+          <th>Entropy</th>
+          <th>File Path</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in event_timeline[:50] %}
+        <tr>
+          <td>{{ ev.timestamp[:19] | replace("T", " ") }}</td>
+          <td>{{ ev.event_type | upper }}</td>
+          <td>
+            {% if ev.file_extension %}
+              {% if ev.file_extension in suspicious_extensions %}
+                <span class="ext-badge">{{ ev.file_extension }}</span>
+              {% else %}
+                {{ ev.file_extension }}
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if ev.entropy_score is not none %}
+              {% if ev.entropy_score >= 7.0 %}
+                <span class="entropy-high">{{ "%.2f"|format(ev.entropy_score) }}</span>
+              {% elif ev.entropy_score >= 5.5 %}
+                <span class="entropy-med">{{ "%.2f"|format(ev.entropy_score) }}</span>
+              {% else %}
+                <span class="entropy-low">{{ "%.2f"|format(ev.entropy_score) }}</span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ (ev.file_path or "")[-70:] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Process Snapshots -->
+    {% if process_metadata %}
+    <h2 class="section-title">Suspect Process Snapshots</h2>
+    <table class="process-table">
+      <thead>
+        <tr>
+          <th>PID</th><th>Name</th><th>CPU%</th>
+          <th>Mem (MB)</th><th>Disk Writes</th>
+          <th>Parent</th><th>Flagged</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ps in process_metadata[:20] %}
+        <tr>
+          <td>{{ ps.pid }}</td>
+          <td><strong>{{ ps.process_name }}</strong></td>
+          <td>{{ "%.1f"|format(ps.cpu_percent) }}%</td>
+          <td>{{ "%.1f"|format(ps.memory_mb) }}</td>
+          <td>{{ "{:,}".format(ps.disk_write_bytes) }}</td>
+          <td>{{ ps.parent_name or "—" }}</td>
+          <td class="{{ 'flagged-yes' if ps.is_flagged else '' }}">
+            {{ "YES ⚠" if ps.is_flagged else "no" }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Remediation Recommendations -->
+    {% if remediation_recommendations %}
+    <h2 class="section-title">Remediation Recommendations</h2>
+
+    <div class="remediation-tier tier-immediate">🔴 IMMEDIATE ACTIONS (&lt; 1 hour)</div>
+    <ul class="remediation-list">
+      {% for step in remediation_recommendations.IMMEDIATE %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ul>
+
+    <div class="remediation-tier tier-short">🟠 SHORT-TERM ACTIONS (&lt; 24 hours)</div>
+    <ul class="remediation-list">
+      {% for step in remediation_recommendations.SHORT_TERM %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ul>
+
+    <div class="remediation-tier tier-long">🔵 LONG-TERM HARDENING (&lt; 30 days)</div>
+    <ul class="remediation-list">
+      {% for step in remediation_recommendations.LONG_TERM %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="report-footer">
+      Generated by RDRS v{{ meta.rdrs_version }} &bull;
+      {{ meta.generated_at[:19] | replace("T", " ") }} UTC &bull;
+      CONFIDENTIAL — INTERNAL USE ONLY &bull;
+      Integrity: SHA-256 hash stored in data/reports/{{ summary.incident_id }}/manifest.json
+    </div>
+
+  </div><!-- /.content -->
+</body>
+</html>

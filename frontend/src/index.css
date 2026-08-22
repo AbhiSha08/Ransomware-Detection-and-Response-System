@@ -1,0 +1,89 @@
+/* ==========================================================================
+   RDRS SOC Dashboard — Global Stylesheet
+   Clinical SIEM Theme
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#000000] text-soc-300 antialiased h-screen overflow-hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  code, pre, kbd, samp,
+  .font-mono, [class*="font-mono"] {
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+  }
+
+  ::selection {
+    background: rgba(139, 92, 246, 0.25);
+    color: #e5e7eb;
+  }
+}
+
+@layer components {
+  .soc-panel {
+    background: #0A0A0A;
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 0.5rem;
+  }
+
+  .soc-badge {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-mono font-bold uppercase tracking-wider border;
+  }
+
+  .badge-nominal  { @apply soc-badge bg-[#39ff14]/10 border-[#39ff14]/30 text-[#39ff14]; }
+  .badge-warning  { @apply soc-badge bg-[#8b5cf6]/10 border-[#8b5cf6]/30 text-[#8b5cf6]; }
+  .badge-critical { @apply soc-badge bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]; }
+
+  .soc-heading {
+    @apply text-xs font-semibold uppercase tracking-widest font-mono text-soc-400;
+    letter-spacing: 0.1em;
+  }
+
+  .live-dot {
+    @apply w-1.5 h-1.5 rounded-full bg-[#39ff14] animate-live-breathe;
+  }
+
+  .soc-divider {
+    @apply border-t border-white/5;
+  }
+
+  .soc-row {
+    @apply border-b border-white/5 transition-colors duration-100 hover:bg-white/[0.02];
+  }
+
+  .entropy-critical { @apply text-[#ef4444] font-bold; }
+  .entropy-warning  { @apply text-[#8b5cf6] font-semibold; }
+  .entropy-normal   { @apply text-soc-400; }
+}
+
+@layer utilities {
+  .truncate-mono {
+    @apply truncate font-mono text-xs;
+  }
+  .writing-vertical-lr {
+    writing-mode: vertical-lr;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}

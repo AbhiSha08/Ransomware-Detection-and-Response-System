@@ -1,0 +1,104 @@
+# =============================================================================
+# RDRS — Docker Compose Configuration
+# =============================================================================
+# Purpose : Orchestrates all containerized services for the RDRS stack.
+# Services: PostgreSQL 15 (rdrs_db), FastAPI (rdrs_backend), React (rdrs_frontend)
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 15 — Primary Data Store
+  # ---------------------------------------------------------------------------
+  rdrs_db:
+    image: postgres:15-alpine
+    container_name: rdrs_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${RDRS_DB_USER:-rdrs_user}
+      POSTGRES_PASSWORD: ${RDRS_DB_PASSWORD:?RDRS_DB_PASSWORD must be set in .env}
+      POSTGRES_DB: ${RDRS_DB_NAME:-rdrs}
+      PGTZ: UTC
+    volumes:
+      - rdrs_pgdata:/var/lib/postgresql/data
+      - ./backend/database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${RDRS_DB_USER:-rdrs_user} -d ${RDRS_DB_NAME:-rdrs}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - rdrs_internal
+    ports:
+      - "127.0.0.1:5432:5432"
+    command: >
+      postgres -c max_connections=100 -c shared_buffers=256MB -c effective_cache_size=512MB -c work_mem=4MB -c maintenance_work_mem=64MB -c wal_level=replica -c log_min_duration_statement=500 -c log_line_prefix='%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h ' -c log_checkpoints=on -c log_lock_waits=on -c log_temp_files=0
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend — RDRS API & Threat Engine
+  # ---------------------------------------------------------------------------
+  rdrs_backend:
+    image: python:3.11-slim
+    container_name: rdrs_backend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude 'data/*'"
+    depends_on:
+      rdrs_db:
+        condition: service_healthy
+    networks:
+      - rdrs_internal
+
+  # ---------------------------------------------------------------------------
+  # React Frontend (Vite Dev Server)
+  # ---------------------------------------------------------------------------
+  rdrs_frontend:
+    image: node:20-alpine
+    container_name: rdrs_frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - VITE_PORT=5173
+      - VITE_API_URL=http://rdrs_backend:8000
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - rdrs_internal
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  rdrs_pgdata:
+    name: rdrs_pgdata
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/db
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  rdrs_internal:
+    name: rdrs_internal
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
