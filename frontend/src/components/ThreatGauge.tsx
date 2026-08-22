@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AlertTriangle, ShieldCheck, Activity, Zap, TrendingUp } from 'lucide-react';
 
 interface ThreatGaugeProps {
@@ -81,8 +81,54 @@ function SegmentBar({ score }: { score: number }) {
 
 export const ThreatGauge: React.FC<ThreatGaugeProps> = ({ score, severity }) => {
   const normalizedScore = Math.max(0, Math.min(100, score));
+  const isCritical = normalizedScore >= 70 || severity === 'CRITICAL';
   const theme = getSeverityTheme(normalizedScore, severity);
   const { Icon } = theme;
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isCritical) {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+
+      if (!intervalRef.current) {
+        intervalRef.current = setInterval(() => {
+          if (!audioCtxRef.current) return;
+          const osc = audioCtxRef.current.createOscillator();
+          const gain = audioCtxRef.current.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, audioCtxRef.current.currentTime);
+          
+          gain.gain.setValueAtTime(1, audioCtxRef.current.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtxRef.current.currentTime + 0.15);
+          
+          osc.connect(gain);
+          gain.connect(audioCtxRef.current.destination);
+          
+          osc.start();
+          osc.stop(audioCtxRef.current.currentTime + 0.15);
+        }, 500);
+      }
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isCritical]);
 
   return (
     <div
@@ -90,7 +136,7 @@ export const ThreatGauge: React.FC<ThreatGaugeProps> = ({ score, severity }) => 
         relative overflow-hidden border p-4 flex flex-col h-full justify-between transition-colors duration-500
         ${theme.panelBg} ${theme.panelBorder}
         soc-panel
-        ${normalizedScore >= 100 ? 'animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.4)]' : ''}
+        ${isCritical ? 'animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.4)]' : ''}
       `}
     >
       <div className="absolute -right-6 -bottom-6 opacity-[0.03] pointer-events-none select-none">
