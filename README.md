@@ -168,3 +168,4 @@ docker compose exec rdrs_backend pytest tests/ --cov=backend --cov-report=term-m
 > *   **No Destructive Actions**: The SOAR Incident Responder (`responder.py`) does **not** execute destructive OS commands on the host machine.
 > *   **Safe Evidence Handling**: When a threat is detected, `quarantine_evidence()` strictly uses secure copy operations (`shutil.copy2`); the original evidence files are never modified or deleted.
 > *   **Simulated Process Kill**: The `simulate_neutralization()` method safely logs the intended termination of a target PID without invoking a true `os.kill` or `taskkill` against the host operating system.
+git status
