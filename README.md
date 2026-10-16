@@ -49,6 +49,15 @@ The RDRS pipeline operates via a decoupled, highly concurrent asynchronous archi
 │  (Real-Time ThreatGauge, EventStream, and Alerts)       │
 └─────────────────────────────────────────────────────────┘
 ```
+## 🖼️ Live SOC Dashboard Preview
+
+### Real-Time Threat Monitoring & Sliding-Window Telemetry
+![RDRS Dashboard Live](assets/rdrs_dashboard_live.png)
+
+### Automated SOAR Critical Incident Response
+![RDRS Critical Alert](assets/rdrs_alert_critical.png)
+
+
 
 ## 📂 Exhaustive Project Directory Structure
 
